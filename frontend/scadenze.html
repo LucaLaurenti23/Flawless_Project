@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scadenze · Flawless Project</title>
+<script src="tema.js"></script>
+<link rel="stylesheet" href="app.css">
+<style>
+  body { overflow-y: auto; }
+  .pagina { max-width: 900px; margin: 0 auto; padding: 24px 16px 60px; }
+  .intestazione h1 { margin: 0; font-size: 26px; }
+  .intestazione p { margin: 6px 0 0; color: var(--tenue); }
+  .riassunto { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 0; }
+  .sezione { margin-top: 26px; }
+  .sezione > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--debole); margin: 0 0 6px; }
+  .scadenza { color: inherit; text-decoration: none; }
+  .scadenza:hover { background: var(--scheda); }
+</style>
+</head>
+<body class="scheda">
+<header class="testata" style="padding-bottom:14px">
+  <div class="riga-alta">
+    <a class="marchio" href="index.html" style="color:inherit;text-decoration:none">
+      <div class="logo" id="logo"></div>
+      <div>Flawless Project<small>Scadenzario</small></div>
+    </a>
+    <div class="spazio"></div>
+    <label class="scelta-modello">Fascicolo <select id="fascicolo" class="fascicolo"></select></label>
+    <button class="tema-btn" id="tema" title="Cambia tema: chiaro (carta) o scuro">
+      <span class="per-scuro"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>Scuro</span>
+      <span class="per-chiaro"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Chiaro</span>
+    </button>
+  </div>
+</header>
+<div class="pagina" id="pagina" data-linguetta="Scadenzario"><div class="vuoto">Carico…</div></div>
+
+<script src="comune.js"></script>
+<script>
+// $, esc, api, dataIt, pagina... vengono da comune.js
+$('#logo').innerHTML = ICONE.logo;
+const GIORNO = 86400000;
+const oggi = new Date(new Date().toDateString());
+
+function quando(e) {
+  if (!e.data_iso) return { classe: '', sotto: 'data non riconosciuta' };
+  const giorni = Math.round((new Date(e.data_iso + 'T00:00:00') - oggi) / GIORNO);
+  if (giorni < 0) return { classe: 'passata', sotto: `${-giorni} giorni fa` };
+  if (giorni === 0) return { classe: 'imminente', sotto: 'oggi' };
+  return { classe: giorni <= 15 ? 'imminente' : '', sotto: `tra ${giorni} giorni` };
+}
+
+function riga(e, tipo) {
+  const q = quando(e);
+  return `<a class="scadenza ${q.classe}" href="scheda.html?doc=${e.document_id}${e.pagina ? `&p=${e.pagina}` : ''}&q=${encodeURIComponent(e.valore)}">
+    <div class="quando">${e.data_iso ? esc(dataIt(e.data_iso)) : esc(e.valore)}<small>${esc(q.sotto)}</small></div>
+    <div class="cosa"><b>${esc(e.dettaglio || e.valore)}</b><div>${tipo} · ${esc(e.filename)} · ${esc(pagina(e.pagina))}${e.data_iso ? '' : ` · «${esc(e.valore)}»`}</div></div>
+    <span>${e.verificato ? '' : '<span class="etichetta attenzione">da verificare</span>'}</span></a>`;
+}
+
+async function disegna(fascicolo) {
+  const { elementi, documenti } = await api(`/cases/${fascicolo}/elements`);
+  const tutte = [...elementi.scadenze.map((e) => ({ ...e, tipo: 'Scadenza' })), ...elementi.date.map((e) => ({ ...e, tipo: 'Data' }))];
+  const iso = new Date(oggi.getTime() - oggi.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const future = tutte.filter((e) => e.data_iso && e.data_iso >= iso).sort((a, b) => a.data_iso.localeCompare(b.data_iso));
+  const passate = tutte.filter((e) => e.data_iso && e.data_iso < iso).sort((a, b) => b.data_iso.localeCompare(a.data_iso));
+  const senzaData = tutte.filter((e) => !e.data_iso);
+  const inCorso = documenti.filter((d) => d.estrazione === 'in attesa' || d.estrazione === 'in corso').length;
+  const daAvviare = documenti.filter((d) => d.estrazione === 'non eseguita').length;
+  const imminenti = future.filter((e) => quando(e).classe === 'imminente').length;
+  const sezione = (titolo, voci, vuoto) => `<section class="sezione"><h2>${titolo}</h2>
+    ${voci.map((e) => riga(e, e.tipo)).join('') || `<div class="vuoto">${vuoto}</div>`}</section>`;
+  $('#pagina').innerHTML = `<div class="intestazione"><h1>Scadenze e termini</h1>
+      <p>Date e scadenze estratte in automatico dai documenti del fascicolo. Vanno sempre controllate sull'atto: clicca una riga per aprire la pagina.</p>
+      <div class="riassunto"><span class="etichetta bordeaux">${future.length} in arrivo</span>
+        ${imminenti ? `<span class="etichetta errore">${imminenti} entro 15 giorni</span>` : ''}
+        <span class="etichetta">${passate.length} passate</span><span class="etichetta">${documenti.length} documenti</span>
+        ${inCorso ? `<span class="etichetta attenzione">estrazione in corso su ${inCorso} documenti</span>` : ''}
+        ${daAvviare ? `<a class="etichetta errore" href="strumenti.html?t=estrazione" title="Documenti lunghi: le loro scadenze non compaiono qui finché non avvii l'estrazione da Strumenti › Dati chiave">${daAvviare} document${daAvviare === 1 ? 'o' : 'i'} non analizzat${daAvviare === 1 ? 'o' : 'i'}</a>` : ''}</div></div>
+    ${sezione('In arrivo', future, 'Nessuna scadenza futura trovata.')}
+    ${senzaData.length ? sezione('Termini senza data precisa', senzaData, '') : ''}
+    ${sezione('Passate', passate, 'Nessuna data passata.')}`;
+  if (inCorso) setTimeout(() => disegna(fascicolo).catch(() => {}), 5000);
+}
+
+(async () => {
+  try {
+    const id = await preparaFascicolo($('#fascicolo'), (nuovo) => disegna(nuovo));
+    await disegna(id);
+  } catch (err) {
+    $('#pagina').innerHTML = `<div class="vuoto" style="color:var(--errore)">${esc(err.message)}</div>`;
+  }
+})();
+</script>
+</body>
+</html>

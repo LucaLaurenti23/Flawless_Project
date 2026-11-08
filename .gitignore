@@ -1,0 +1,26 @@
+# Ambiente Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Dati dell'utente: archivio, documenti dei fascicoli, conversazioni. Non devono mai finire nel repository.
+data/
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Appunti di lavoro interni
+docs/interni/
+
+# Impostazioni locali
+.env
+.env.*
+.claude/
+.vscode/
+.idea/
+
+# File di sistema
+Thumbs.db
+Desktop.ini
+.DS_Store
